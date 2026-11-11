@@ -3,6 +3,8 @@
 A Duet Web Control 3.7 plugin that turns the RRF event log into a statistics dashboard
 (**Plugins → Print Stats**), for all time or the last year, month or week:
 
+![Print Stats dashboard](docs/screenshots/dashboard.png)
+
 - prints started, finished, cancelled and interrupted, print time, success rate
 - prints and print time per month or day
 - success by print length, when prints get cancelled, slicer estimate vs. actual time
