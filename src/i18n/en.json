@@ -1,0 +1,115 @@
+{
+	"menuCaption": "Print Stats",
+	"title": "Print Statistics",
+	"ranges": {
+		"all": "All time",
+		"year": "Year",
+		"month": "Month",
+		"week": "Week"
+	},
+	"rangeLabel": "Time range",
+	"logFile": "Log file",
+	"refresh": "Refresh",
+	"source": "{file} · {lines} lines · {from} – {to}",
+	"updated": "Cached · updated {ago}",
+	"justNow": "just now",
+	"status": {
+		"loadingCache": "Loading saved statistics…",
+		"checking": "Checking the event log for new entries…",
+		"downloading": "Reading {file}…",
+		"downloadingProgress": "Reading {file}… {loaded} / {total} MB",
+		"saving": "Saving statistics…"
+	},
+	"notConnected": "Connect to the printer to read its event log.",
+	"noLogFile": "No event log found in {dir}. Turn on event logging in config.g, e.g. M929 P\"eventlog.txt\" S3.",
+	"noJobs": "No prints in this time range.",
+	"loadingFirst": "Reading the event log for the first time. This can take a while for a large log.",
+
+	"kpi": {
+		"started": "Prints started",
+		"startedSub": "over {days} days",
+		"finished": "Finished",
+		"finishedSub": "median {median} · 90 % under {p90}",
+		"cancelled": "Cancelled",
+		"cancelledSub": "{n} within the first 5 min",
+		"interrupted": "Interrupted",
+		"interruptedSub": "reset or power loss mid-print",
+		"hours": "Print time",
+		"hoursSub": "{days} days non-stop · busy {busy} % of the time",
+		"success": "Success rate",
+		"successSub": "{pct} % once past 5 minutes"
+	},
+
+	"periods": {
+		"titleMonth": "Prints and print time per month",
+		"titleDay": "Prints and print time per day",
+		"finished": "Finished",
+		"cancelled": "Cancelled",
+		"interrupted": "Interrupted",
+		"hours": "Hours",
+		"prints": "Prints"
+	},
+	"byLength": {
+		"title": "Success by print length",
+		"sub": "Share of prints that finished, by how long they ran."
+	},
+	"calendar": {
+		"title": "The last 12 months, day by day",
+		"sub": "print hours per day · {n} active days in this range",
+		"less": "Less",
+		"more": "More",
+		"day": "{day}: {prints} prints, {hours}"
+	},
+	"records": {
+		"title": "Records",
+		"longest": "Longest print · {name} · {day}",
+		"mostPrints": "Prints in one day · {day}",
+		"mostHours": "Most print time in a day · {day}",
+		"streak": "Longest streak · {from} – {to}",
+		"break": "Longest break · {from} – {to}",
+		"busiestMonth": "Busiest month · {month}",
+		"daysValue": "{n} days"
+	},
+	"hourWeek": {
+		"title": "When you start prints",
+		"sub": "Busiest: {day} at {hour}:00."
+	},
+	"cancelAt": {
+		"title": "When you hit cancel",
+		"sub": "Minutes into the print. {n} cancels in the very first minute.",
+		"axisStart": "0 min",
+		"axisEnd": "10+"
+	},
+	"estimate": {
+		"title": "Slicer estimate vs. reality",
+		"sub": "Actual ÷ estimate in the file name, {n} prints. Median {median}×.",
+		"none": "No file names with a slicer time estimate in this range.",
+		"slower": "prints run {pct} % long",
+		"faster": "prints finish {pct} % early"
+	},
+	"materials": {
+		"title": "Hours by material",
+		"note": "From slicer file names (…_0.2mm_PLA_1h23m.gcode)",
+		"none": "No material found in the file names."
+	},
+	"layers": {
+		"title": "Layer heights",
+		"none": "No layer height found in the file names."
+	},
+	"top": {
+		"title": "Most printed"
+	},
+	"milestones": {
+		"title": "Milestones",
+		"sub": "Finished prints, all time"
+	},
+	"machine": {
+		"title": "Machine history",
+		"sub": "{powerUps} power-ups · {uv} under-voltage events · {faults} heater faults in this range",
+		"firmware": "Firmware (all time)",
+		"leveling": "Bed tilt before leveling, median per quarter (µm)",
+		"faults": "Heater faults by type",
+		"noFaults": "No heater faults in this range."
+	},
+	"none": "—"
+}
