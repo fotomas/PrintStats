@@ -8,22 +8,116 @@
 		"week": "Week"
 	},
 	"rangeLabel": "Time range",
-	"logFile": "Log file",
 	"refresh": "Refresh",
+	"settings": "Print Stats settings",
+	"settingsPending": "Print Stats settings · {n} older log(s) to import",
 	"source": "{file} · {lines} lines · {from} – {to}",
-	"updated": "Cached · updated {ago}",
+	"updated": "Updated {ago}",
 	"justNow": "just now",
 	"status": {
 		"loadingCache": "Loading saved statistics…",
 		"checking": "Checking the event log for new entries…",
 		"downloading": "Reading {file}…",
 		"downloadingProgress": "Reading {file}… {loaded} / {total} MB",
-		"saving": "Saving statistics…"
+		"saving": "Saving statistics…",
+		"rotating": "Starting a fresh event log…",
+		"importing": "Reading {file}…"
 	},
 	"notConnected": "Connect to the printer to read its event log.",
-	"noLogFile": "No event log found in {dir}. Turn on event logging in config.g, e.g. M929 P\"eventlog.txt\" S3.",
+	"errors": {
+		"download": "Couldn't read {file} ({size} MB): the connection dropped twice while downloading it. The statistics shown are from the last update. Big logs are hard to download over WiFi; \"Manage the log\" in the settings keeps the log small."
+	},
 	"noJobs": "No prints in this time range.",
 	"loadingFirst": "Reading the event log for the first time. This can take a while for a large log.",
+	"empty": {
+		"setup": {
+			"title": "Set up Print Stats",
+			"text": "Choose how Print Stats reads this printer's event log, and it'll start counting your prints."
+		},
+		"off": {
+			"title": "No print history yet",
+			"text": "Event logging is off on this printer, so there are no prints to count. Turn it on to start collecting statistics."
+		},
+		"noPrints": {
+			"title": "No prints logged yet",
+			"text": "The event log has no finished or cancelled prints yet. Statistics appear after the first print."
+		},
+		"setupButton": "Set up",
+		"button": "Open settings"
+	},
+	"setup": {
+		"titleFirst": "Set up Print Stats",
+		"title": "Print Stats settings",
+		"close": "Close",
+		"copy": "Copy",
+		"later": "Later",
+		"save": "Save",
+		"saveAndRead": "Save and read log",
+		"done": "Done",
+		"none": "—",
+		"saveFailed": "Couldn't save the settings on the printer: {error}",
+		"logging": {
+			"title": "Event logging",
+			"checking": "Checking event logging on the printer…",
+			"offTitle": "Event logging is off",
+			"offText": "Print Stats reads finished and cancelled prints from the printer's event log. Without it there's nothing to count.",
+			"turnOn": "Turn on until next reboot",
+			"turnOnNote": "This lasts until the printer restarts. To keep logging on, add this line to config.g:",
+			"neverConfig": "Print Stats never changes config.g.",
+			"on": {
+				"warn": "Logging warnings to {file}",
+				"info": "Logging at info level to {file}",
+				"debug": "Logging at debug level to {file}"
+			},
+			"size": "{size} · read from the printer's settings",
+			"fromPrinter": "Read from the printer's settings",
+			"infoNote": "Info level also logs messages from M117 and M291, so the log grows a little faster. Warning level is enough for Print Stats. To change it, edit the M929 line in config.g to S1.",
+			"debugNote": "Debug logs every message, so the log grows quickly and loads get slower. Warning level is enough for Print Stats. To change it, edit the M929 line in config.g to S1."
+		},
+		"mode": {
+			"title": "Event log handling",
+			"default": "default",
+			"readOnly": "Read-only mode",
+			"readOnlyText": "The log file is never changed. The whole log is read each time it grows. Results are saved in 0:/sys/PrintStats/ and in this browser.",
+			"manage": "Manage the log",
+			"manageText": "When the printer is idle, the log is read in and started fresh. Updates become much quicker, because only the newest lines are downloaded.",
+			"lossTitle": "The original log text is not kept",
+			"lossText": "Print Stats keeps only what it counts: prints, print times, file names, power-ups, firmware versions, leveling and heater faults. Once a log has been read in, the file is deleted. That means:",
+			"loss1": "Other messages are gone, such as error and warning text, network and login lines, and macro or M118 messages.",
+			"loss2": "You can't open the full log later to troubleshoot a problem.",
+			"loss3": "A few lines logged in the second while the log is restarted may be missed.",
+			"lossHint": "Need the full log? Use read-only mode.",
+			"lossShort": "The original log text isn't kept after it's read in. Need the full log? Use read-only mode."
+		},
+		"import": {
+			"title": "Older logs",
+			"button": "Import",
+			"again": "Import again",
+			"text": "Adds prints from an older or copied log. Prints already in the history aren't counted twice, so importing again is always safe.",
+			"none": "No other log files in the system folder.",
+			"noneShort": "None found",
+			"allImported": "All imported",
+			"newCount": "{n} new",
+			"changedCount": "{n} changed",
+			"status": {
+				"imported": "imported",
+				"changed": "changed since import"
+			},
+			"recorded": "{n} prints added on {day}",
+			"recordedNothing": "Checked on {day}: already in the history",
+			"done": "Added {n} prints from {file}.",
+			"doneNothing": "{file} has nothing the history doesn't already have."
+		},
+		"history": {
+			"title": "History",
+			"covers": "Covers",
+			"stored": "Stored in",
+			"storedValue": "{dir} · {n} year files · {size}",
+			"lastUpdate": "Last update",
+			"recheck": "Re-check log",
+			"recheckText": "Reads the whole log again and adds anything missing. Nothing is removed."
+		}
+	},
 
 	"kpi": {
 		"started": "Prints started",

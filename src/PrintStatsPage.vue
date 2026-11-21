@@ -11,13 +11,17 @@
 			<v-btn-toggle v-model="range" mandatory divided density="comfortable" variant="outlined" color="primary" :aria-label="tt('rangeLabel')">
 				<v-btn v-for="r in TIME_RANGES" :key="r" :value="r">{{ tt(`ranges.${r}`) }}</v-btn>
 			</v-btn-toggle>
-			<v-select v-if="logFiles.length > 1" :model-value="logFile" :items="logFiles" :label="tt('logFile')" density="compact"
-					  variant="outlined" hide-details class="ps-file" @update:model-value="selectLogFile" />
 			<div class="ps-refresh">
 				<span class="ps-muted ps-small">{{ statusText }}</span>
 				<v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="busy" :disabled="!connected" @click="refresh">
 					{{ tt("refresh") }}
 				</v-btn>
+				<!-- amber dot: an older log is new or has changed since it was imported -->
+				<v-badge :model-value="!!settings && pendingImports.length > 0" dot color="warning" offset-x="4" offset-y="4">
+					<v-btn variant="tonal" icon="mdi-cog-outline" density="comfortable" :disabled="!connected" @click="openSetup"
+						   :aria-label="pendingImports.length ? tt('settingsPending', { n: pendingImports.length }) : tt('settings')"
+						   :title="pendingImports.length ? tt('settingsPending', { n: pendingImports.length }) : tt('settings')" />
+				</v-badge>
 			</div>
 		</header>
 
@@ -26,11 +30,20 @@
 						   rounded :aria-label="statusText" class="ps-progress" />
 
 		<v-alert v-if="!connected" type="info" variant="tonal" density="compact">{{ tt("notConnected") }}</v-alert>
-		<v-alert v-else-if="noLogFile" type="warning" variant="tonal" density="compact">{{ tt("noLogFile", { dir: sysDir }) }}</v-alert>
 		<v-alert v-if="error" type="error" variant="tonal" density="compact">{{ error }}</v-alert>
-		<v-alert v-if="!parsed && busy" type="info" variant="tonal" density="compact">{{ tt("loadingFirst") }}</v-alert>
+		<v-alert v-if="!parsed && busy && settings" type="info" variant="tonal" density="compact">{{ tt("loadingFirst") }}</v-alert>
 
-		<template v-if="s">
+		<!-- nothing to show: not set up yet, logging off, or no prints logged -->
+		<v-card v-if="emptyReason && !busy" class="ps-card ps-empty">
+			<v-icon :icon="emptyReason === 'setup' ? 'mdi-chart-areaspline' : 'mdi-file-hidden'" size="40" class="ps-muted" />
+			<h2 class="mt-3">{{ tt(`empty.${emptyReason}.title`) }}</h2>
+			<p class="ps-muted ps-empty-text">{{ tt(`empty.${emptyReason}.text`) }}</p>
+			<v-btn variant="tonal" :disabled="!connected" @click="openSetup">{{ tt(emptyReason === "setup" ? "empty.setupButton" : "empty.button") }}</v-btn>
+		</v-card>
+
+		<SetupDialog v-model="setupOpen" :first-run="settings === false" @saved="refresh" />
+
+		<template v-if="s && !emptyReason">
 			<v-alert v-if="s.totals.started + s.totals.finished + s.totals.cancelled === 0" type="info" variant="tonal" density="compact">
 				{{ tt("noJobs") }}
 			</v-alert>
@@ -196,20 +209,49 @@ import HourHeatmap from "./components/HourHeatmap.vue";
 import MiniBars from "./components/MiniBars.vue";
 import type { MiniBar } from "./components/types";
 import PeriodChart from "./components/PeriodChart.vue";
+import SetupDialog from "./components/SetupDialog.vue";
 import { COLORS, MATERIAL_COLORS } from "./colors";
 import { PLUGIN_ID } from "./id";
 import { TIME_RANGES, calendar, computeStats, formatMinutes, levelingByQuarter, milestones, type TimeRange } from "./model/stats";
+import { useLogging, useSettings } from "./settings";
 import { usePrintStats } from "./usePrintStats";
 
 const tt = (key: string, args?: Record<string, unknown>) => i18n.global.t(`plugins.printStats.${key}`, args ?? {});
 
 const machineStore = useMachineStore();
 const cacheStore = useCacheStore();
-const { parsed, status, error, noLogFile, logFiles, logFile, progress, start, refresh, jobEnded, selectLogFile } = usePrintStats();
+const { parsed, status, error, progress, reading, start, refresh, jobEnded, pendingImports } = usePrintStats();
+const { settings } = useSettings();
+const { known: loggingKnown, level } = useLogging();
 
 const connected = computed(() => machineStore.isConnected);
-const sysDir = computed(() => String((machineStore.model as any).directories?.system ?? "0:/sys/"));
 const busy = computed(() => status.value !== "idle");
+
+// the setup dialog opens by itself once per page load while the printer has no settings yet ("Later" closes it)
+const setupOpen = ref(false);
+let setupShown = false;
+const openSetup = () => (setupOpen.value = true);
+watch(settings, s => {
+	if (s === false && !setupShown) {
+		setupShown = true;
+		setupOpen.value = true;
+	}
+}, { immediate: true });
+
+/** Why there is nothing to show, or null */
+const emptyReason = computed<"setup" | "off" | "noPrints" | null>(() => {
+	if (!connected.value && parsed.value) {
+		return null;
+	}
+	const jobs = parsed.value?.jobs.length ?? 0;
+	if (settings.value === false && !jobs) {
+		return "setup";
+	}
+	if (settings.value && !jobs && loggingKnown.value) {
+		return level.value === "off" ? "off" : "noPrints";
+	}
+	return null;
+});
 
 const storedRange = cacheStore.plugins[PLUGIN_ID]?.range as TimeRange | undefined;
 const range = ref<TimeRange>(storedRange && TIME_RANGES.includes(storedRange) ? storedRange : "all");
@@ -234,11 +276,11 @@ let timer: ReturnType<typeof setInterval> | undefined;
 const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
 const progressPct = computed(() => (progress.value?.total ? Math.min(100, (progress.value.loaded / progress.value.total) * 100) : 0));
 const statusText = computed(() => {
-	if (status.value === "downloading" && progress.value?.total) {
-		return tt("status.downloadingProgress", { file: logFile.value, loaded: mb(progress.value.loaded), total: mb(progress.value.total) });
+	if ((status.value === "downloading" || status.value === "importing") && progress.value?.total) {
+		return tt("status.downloadingProgress", { file: reading.value, loaded: mb(progress.value.loaded), total: mb(progress.value.total) });
 	}
 	if (status.value !== "idle") {
-		return tt(`status.${status.value}`, { file: logFile.value });
+		return tt(`status.${status.value}`, { file: reading.value });
 	}
 	if (!parsed.value) {
 		return "";
@@ -396,8 +438,9 @@ h2 { font-size: 1rem; font-weight: 500; margin: 0 0 12px; }
 }
 
 .ps-heading { flex: 1 1 340px; display: flex; flex-direction: column; gap: 4px; }
-.ps-file { max-width: 240px; }
 .ps-refresh { display: flex; align-items: center; gap: 12px; }
+.ps-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 48px 24px; }
+.ps-empty-text { max-width: 420px; margin: 4px 0 16px; }
 .ps-progress { margin: -8px 0 -4px; }
 
 .ps-muted { color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity)); }

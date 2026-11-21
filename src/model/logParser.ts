@@ -61,7 +61,16 @@ export interface ParserState {
 	/** [start, file name or null, pauses] */
 	open: [number, string | null, number] | null;
 	firmware: string | null;
+	/** Time of the last "Event logging started" counted as a power-up (see ROTATED_MARKER) */
+	logStart?: number;
 }
+
+/**
+ * Written to the log (M118 ... L1) right after Print Stats restarts logging when it rotates the log. The
+ * "Event logging started" line just before it is then not a power-up. Being in the log itself, this holds
+ * however the log is read later: incrementally, re-checked from the start, or imported from the archive.
+ */
+export const ROTATED_MARKER = "PrintStats: log rotated";
 
 export function newParserState(): ParserState {
 	return { now: 0, open: null, firmware: null };
@@ -155,6 +164,12 @@ export function parseInto(text: string, out: ParsedLog, state: ParserState, skip
 					out.jobs.push([0, now, status, minutes, fileId(fileName(line)), 0]);
 				}
 				state.open = null;
+			} else if (line.includes(ROTATED_MARKER)) {
+				// the logging restart just before was Print Stats rotating the log, not a power-up
+				if (state.logStart !== undefined && out.powerUps[out.powerUps.length - 1] === state.logStart) {
+					out.powerUps.pop();
+				}
+				state.logStart = undefined;
 			} else if (line.includes("Printing paused")) {
 				if (state.open) {
 					state.open[2]++;
@@ -183,6 +198,7 @@ export function parseInto(text: string, out: ParsedLog, state: ParserState, skip
 			if (line.includes("Event logging started")) {
 				closeInterrupted();
 				out.powerUps.push(now);
+				state.logStart = now;
 			} else if (line.includes("Running: ")) {
 				const fw = FIRMWARE.exec(line)?.[1];
 				if (fw && state.firmware !== fw) {

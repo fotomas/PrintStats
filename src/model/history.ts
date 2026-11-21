@@ -40,6 +40,40 @@ export interface HistoryIndex {
 	lines: number;
 	first: number;
 	last: number;
+	/** older logs imported into the history, so the dialog can tell which still need importing */
+	imports?: ImportRecord[];
+}
+
+export interface ImportRecord {
+	name: string;
+	/** size and date of the file when it was imported: if they differ now, the file has changed since */
+	size: number;
+	lastModified: string | null;
+	/** when it was imported (ISO) and how many prints it added */
+	at: string;
+	added: number;
+}
+
+/** new: never imported. imported: imported and unchanged since. changed: imported, but the file differs now */
+export type ImportStatus = "new" | "imported" | "changed";
+
+export function importStatus(index: HistoryIndex | null, file: { name: string; size: number; lastModified: string | null }): ImportStatus {
+	const r = index?.imports?.find(i => i.name === file.name);
+	if (!r) {
+		return "new";
+	}
+	return r.size === file.size && sameTime(r.lastModified, file.lastModified) ? "imported" : "changed";
+}
+
+/**
+ * Whether two file dates (ISO) are the same. RRF dates have whole seconds, but DWC's conversion adds
+ * milliseconds that differ from one listing to the next, so they are compared with a little tolerance.
+ */
+export function sameTime(a: string | null, b: string | null): boolean {
+	if (a === null || b === null) {
+		return a === b;
+	}
+	return Math.abs(Date.parse(a) - Date.parse(b)) < 2000;
 }
 
 export interface YearFile {
@@ -170,6 +204,81 @@ function cloneLog(log: ParsedLog): ParsedLog {
 	};
 }
 
+/**
+ * Add the entries of another parsed log (an older log, or a copy that overlaps the history) that the history
+ * does not have yet. Entries are matched on time: a finished or cancelled print by its end and status, an
+ * interrupted one by its start, other events by time and value. Undated entries (time 0) are not imported.
+ */
+export function importLog(base: ParsedLog, other: ParsedLog): { log: ParsedLog; changed: Set<number>; added: number } {
+	const log = cloneLog(base);
+	const changed = new Set<number>();
+	let added = 0;
+	const jobKey = (j: Job, files: string[]) => (j[2] === "i" ? `i|${j[0]}` : `${j[2]}|${j[1]}`) + `|${j[4] < 0 ? "" : files[j[4]]}`;
+
+	const jobs = new Set(log.jobs.map(j => jobKey(j, log.files)));
+	const fileIds = new Map(log.files.map((f, i) => [f, i]));
+	for (const j of other.jobs) {
+		const t = jobTime(j);
+		if (!t || jobs.has(jobKey(j, other.files))) continue;
+		jobs.add(jobKey(j, other.files));
+		let id = -1;
+		if (j[4] >= 0) {
+			const name = other.files[j[4]];
+			id = fileIds.get(name) ?? -1;
+			if (id < 0) {
+				id = log.files.length;
+				log.files.push(name);
+				fileIds.set(name, id);
+			}
+		}
+		log.jobs.push([j[0], j[1], j[2], j[3], id, j[5]]);
+		changed.add(yearOf(t));
+		added++;
+	}
+
+	const addTimes = (into: number[], from: number[]) => {
+		const have = new Set(into);
+		for (const t of from) if (t && !have.has(t)) { into.push(t); have.add(t); changed.add(yearOf(t)); }
+		into.sort((a, b) => a - b);
+	};
+	addTimes(log.powerUps, other.powerUps);
+	addTimes(log.underVoltage, other.underVoltage);
+
+	const levels = new Set(log.leveling.map(l => l.join("|")));
+	for (const l of other.leveling) if (l[0] && !levels.has(l.join("|"))) { log.leveling.push(l); changed.add(yearOf(l[0])); }
+	log.leveling.sort((a, b) => a[0] - b[0]);
+
+	const faultIds = new Map(log.faultTypes.map((f, i) => [f, i]));
+	const faults = new Set(log.faults.map(([t, f]) => `${t}|${log.faultTypes[f]}`));
+	for (const [t, f] of other.faults) {
+		const type = other.faultTypes[f];
+		if (!t || faults.has(`${t}|${type}`)) continue;
+		let id = faultIds.get(type);
+		if (id === undefined) {
+			id = log.faultTypes.length;
+			log.faultTypes.push(type);
+			faultIds.set(type, id);
+		}
+		log.faults.push([t, id]);
+		faults.add(`${t}|${type}`);
+		changed.add(yearOf(t));
+	}
+	log.faults.sort((a, b) => a[0] - b[0]);
+
+	// firmware is a list of changes: merge both, sort, and drop repeats of the same version
+	const fw = [...log.firmware, ...other.firmware.filter(f => f[0])].sort((a, b) => a[0] - b[0]);
+	const merged = fw.filter((f, i) => i === 0 || f[1] !== fw[i - 1][1]);
+	const had = new Set(log.firmware.map(f => f.join("|")));
+	for (const f of merged) if (!had.has(f.join("|"))) changed.add(yearOf(f[0]));
+	log.firmware = merged;
+
+	log.jobs.sort((a, b) => jobTime(a) - jobTime(b));
+	const times = [log.first, other.first].filter(t => t > 0);
+	log.first = times.length ? Math.min(...times) : 0;
+	log.last = Math.max(log.last, other.last);
+	return { log, changed, added };
+}
+
 export interface FoldResult {
 	log: ParsedLog;
 	index: HistoryIndex;
@@ -204,6 +313,10 @@ export function foldLog(base: ParsedLog, index: HistoryIndex, text: string, sour
 	for (const j of log.jobs.slice(before.jobs)) changed.add(yearOf(jobTime(j)));
 	for (const [t] of log.firmware.slice(before.firmware)) changed.add(yearOf(t));
 	for (const t of log.powerUps.slice(before.powerUps)) changed.add(yearOf(t));
+	// a rotation marker can remove a power-up that was read in the previous piece
+	if (before.powerUps && log.powerUps[before.powerUps - 1] !== base.powerUps[before.powerUps - 1]) {
+		changed.add(yearOf(base.powerUps[before.powerUps - 1]));
+	}
 	for (const [t] of log.leveling.slice(before.leveling)) changed.add(yearOf(t));
 	for (const [t] of log.faults.slice(before.faults)) changed.add(yearOf(t));
 	for (const t of log.underVoltage.slice(before.underVoltage)) changed.add(yearOf(t));
