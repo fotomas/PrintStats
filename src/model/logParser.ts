@@ -51,18 +51,46 @@ export function baseName(path: string): string {
 	return name.replace(/^\d{8}-\d{6} - /, "").replace(/\.g(code)?$/i, "");
 }
 
-export function parseLog(text: string, source: SourceInfo): ParsedLog {
-	const out: ParsedLog = {
+/**
+ * What the parser needs to carry from one piece of log to the next: the current time (lines after a
+ * power-up have no date), the print that has started but not ended, and the last firmware version.
+ * The open job keeps its file name rather than an index, so it does not depend on one ParsedLog's file list.
+ */
+export interface ParserState {
+	now: number;
+	/** [start, file name or null, pauses] */
+	open: [number, string | null, number] | null;
+	firmware: string | null;
+}
+
+export function newParserState(): ParserState {
+	return { now: 0, open: null, firmware: null };
+}
+
+export function emptyLog(source: SourceInfo): ParsedLog {
+	return {
 		v: CACHE_VERSION, source, parsedAt: new Date().toISOString(), lines: 0, first: 0, last: 0,
 		files: [], jobs: [], firmware: [], powerUps: [], leveling: [], faults: [], faultTypes: [], underVoltage: [],
 	};
-	const fileIndex = new Map<string, number>();
-	const faultIndex = new Map<string, number>();
-	const fileId = (path: string | undefined): number => {
-		if (!path) {
+}
+
+/** Lines to skip at the start of a piece: those at or before a time, used when a log was replaced */
+export interface SkipUntil {
+	time: number;
+}
+
+/**
+ * Parse a piece of event log into `out`, continuing from `state` (both are updated in place).
+ * A print still running at the end of the piece stays in `state.open` and is not added to `out`.
+ * With `skip`, lines dated at or before `skip.time` (and the undated lines that follow them) are ignored.
+ */
+export function parseInto(text: string, out: ParsedLog, state: ParserState, skip?: SkipUntil): void {
+	const fileIndex = new Map<string, number>(out.files.map((f, i) => [f, i]));
+	const faultIndex = new Map<string, number>(out.faultTypes.map((f, i) => [f, i]));
+	const fileId = (name: string | null | undefined): number => {
+		if (!name) {
 			return -1;
 		}
-		const name = baseName(path);
 		let id = fileIndex.get(name);
 		if (id === undefined) {
 			id = out.files.length;
@@ -71,26 +99,41 @@ export function parseLog(text: string, source: SourceInfo): ParsedLog {
 		}
 		return id;
 	};
+	const fileName = (line: string): string | null => {
+		const path = FILE.exec(line)?.[1];
+		return path ? baseName(path) : null;
+	};
+	if (state.firmware === null && out.firmware.length) {
+		state.firmware = out.firmware[out.firmware.length - 1][1];
+	}
 
-	let now = 0;
-	let open: Job | null = null;
 	const closeInterrupted = () => {
-		if (open) {
-			open[2] = "i";
-			out.jobs.push(open);
-			open = null;
+		if (state.open) {
+			const [start, name, pauses] = state.open;
+			out.jobs.push([start, 0, "i", -1, fileId(name), pauses]);
+			state.open = null;
 		}
 	};
 
+	let skipping = !!skip;
+	let now = state.now;
 	const lines = text.split(/\r?\n/);
 	for (const line of lines) {
 		if (!line) {
 			continue;
 		}
-		out.lines++;
 		const m = TIMESTAMP.exec(line);
 		if (m) {
 			now = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000;
+			if (skipping && now > skip!.time) {
+				skipping = false;
+			}
+		}
+		if (skipping) {
+			continue;
+		}
+		out.lines++;
+		if (m) {
 			if (!out.first) {
 				out.first = now;
 			}
@@ -100,19 +143,21 @@ export function parseLog(text: string, source: SourceInfo): ParsedLog {
 		if (line.includes("[warn]")) {
 			if (line.includes("Started printing file")) {
 				closeInterrupted();
-				open = [now, 0, "i", -1, fileId(FILE.exec(line)?.[1]), 0];
+				state.open = [now, fileName(line), 0];
 			} else if (line.includes("Finished printing file") || line.includes("Cancelled printing file")) {
 				const pt = PRINT_TIME.exec(line);
 				const minutes = pt ? +pt[1] * 60 + +pt[2] : -1;
-				const job: Job = open ?? [0, 0, "i", -1, fileId(FILE.exec(line)?.[1]), 0];
-				job[1] = now;
-				job[2] = line.includes("Finished") ? "f" : "c";
-				job[3] = minutes;
-				out.jobs.push(job);
-				open = null;
+				const status: JobStatus = line.includes("Finished") ? "f" : "c";
+				if (state.open) {
+					const [start, name, pauses] = state.open;
+					out.jobs.push([start, now, status, minutes, fileId(name), pauses]);
+				} else {
+					out.jobs.push([0, now, status, minutes, fileId(fileName(line)), 0]);
+				}
+				state.open = null;
 			} else if (line.includes("Printing paused")) {
-				if (open) {
-					open[5]++;
+				if (state.open) {
+					state.open[2]++;
 				}
 			} else if (line.includes("Leadscrew adjustments made")) {
 				const l = LEVELING.exec(line);
@@ -140,13 +185,20 @@ export function parseLog(text: string, source: SourceInfo): ParsedLog {
 				out.powerUps.push(now);
 			} else if (line.includes("Running: ")) {
 				const fw = FIRMWARE.exec(line)?.[1];
-				if (fw && out.firmware[out.firmware.length - 1]?.[1] !== fw) {
+				if (fw && state.firmware !== fw) {
 					out.firmware.push([now, fw]);
+					state.firmware = fw;
 				}
 			}
 		}
 	}
-	// a job still open at the end of the log is running (or the log stopped): leave it out
+	state.now = now;
+}
+
+/** Parse a whole log at once (a print still running at the end is left out) */
+export function parseLog(text: string, source: SourceInfo): ParsedLog {
+	const out = emptyLog(source);
+	parseInto(text, out, newParserState());
 	return out;
 }
 

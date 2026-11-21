@@ -205,7 +205,7 @@ const tt = (key: string, args?: Record<string, unknown>) => i18n.global.t(`plugi
 
 const machineStore = useMachineStore();
 const cacheStore = useCacheStore();
-const { parsed, status, error, noLogFile, logFiles, logFile, progress, start, refresh, checkForChanges, selectLogFile } = usePrintStats();
+const { parsed, status, error, noLogFile, logFiles, logFile, progress, start, refresh, jobEnded, selectLogFile } = usePrintStats();
 
 const connected = computed(() => machineStore.isConnected);
 const sysDir = computed(() => String((machineStore.model as any).directories?.system ?? "0:/sys/"));
@@ -349,13 +349,13 @@ const levelAxis = computed(() => {
 
 // ---- lifecycle ------------------------------------------------------------------------------------
 
-// look for new log entries a few seconds after a print ends
+// when a print ends: add it from the object model a moment later (once job.last* is set), then read the log
 const RUNNING = ["processing", "simulating", "paused", "pausing", "resuming", "cancelling"];
 let afterJob: ReturnType<typeof setTimeout> | undefined;
 watch(() => String((machineStore.model as any).state?.status ?? ""), (to, from) => {
 	if (to === "idle" && RUNNING.includes(from)) {
 		clearTimeout(afterJob);
-		afterJob = setTimeout(() => checkForChanges(), 5000);
+		afterJob = setTimeout(() => jobEnded(), 2000);
 	}
 });
 

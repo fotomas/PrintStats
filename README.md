@@ -15,10 +15,17 @@ A Duet Web Control 3.7 plugin that turns the RRF event log into a statistics das
 
 ### Caching
 
-Reading a large event log over WiFi takes a while, so the parsed log is saved to
-`0:/sys/printstats-cache.json` (about 250 kB for three years). The page shows the cache at once, then checks
-the log's size and date and re-reads it in the background when it changed. It also checks after a print ends.
-**Refresh** re-reads the log now. Deleting the cache file is safe; it is rebuilt.
+Reading a large event log over WiFi takes a while, so the parsed history is kept on the printer in
+`0:/sys/PrintStats/`: an `index.json` (under 1 kB) and one file per year (`2025.json`, about 20–90 kB each),
+plus a copy in the browser.
+
+- Opening the page shows the browser copy at once, then reads `index.json` and only the year files that changed.
+- If the event log changed since, it is downloaded, only the lines after the last read position are parsed,
+  and only the changed year file and the index are written back. Past years are never rewritten.
+- When a print ends while the page is open, it is shown at once and confirmed from the log shortly after.
+- **Refresh** re-reads the whole log and rebuilds the history. Deleting the folder is safe; it is rebuilt.
+
+The printer cannot send part of a file, so each update still downloads the whole event log when it has grown.
 
 ## Requirements
 
@@ -46,7 +53,8 @@ Needs a DuetWebControl 3.7 checkout with this folder in `src/plugins/PrintStats`
 | `src/index.ts` | Entry: registers the route, strings and remembered settings |
 | `src/PrintStatsPage.vue` | The dashboard |
 | `src/usePrintStats.ts` | Loading, caching and background refresh |
-| `src/model/logParser.ts` | Event log → jobs and machine events (the cache format) |
+| `src/model/logParser.ts` | Event log → jobs and machine events, incremental |
+| `src/model/history.ts` | Yearly history files, index and folding new log lines in |
 | `src/model/stats.ts` | Statistics for a time range |
 | `src/components/` | Charts: period chart (Chart.js), heatmaps, small bar charts |
 | `src/i18n/en.json` | Strings, under `plugins.printStats.*` |
