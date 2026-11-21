@@ -23,8 +23,8 @@ again later with the gear button. The log file and level are read from the print
   dialog suggests warning level, which keeps the log small.
 - **Read-only mode** (default): the log file is never changed. The whole log is downloaded each time it has grown.
 - **Manage the log**: once the log is over 256 kB and the printer is idle, logging is stopped, the log is read
-  in, moved to `0:/sys/PrintStats/archive/` and logging restarts at the same file and level. Updates then
-  download only a few kB. The original log text is not kept beyond what Print Stats counts.
+  in and deleted, and logging restarts at the same file and level. Updates then download only a few kB. The
+  original log text is not kept beyond what Print Stats counts; switch to read-only mode to keep the full log.
 - **Older logs**: another log in `0:/sys/` (or a copy of one) can be imported. Entries already in the history,
   matched by time, aren't counted twice.
 - **Re-check log** reads the whole current log again and adds anything the history is missing. It never

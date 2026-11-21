@@ -68,7 +68,7 @@ export interface ParserState {
 /**
  * Written to the log (M118 ... L1) right after Print Stats restarts logging when it rotates the log. The
  * "Event logging started" line just before it is then not a power-up. Being in the log itself, this holds
- * however the log is read later: incrementally, re-checked from the start, or imported from the archive.
+ * however the log is read later: incrementally, re-checked from the start, or imported as an older log.
  */
 export const ROTATED_MARKER = "PrintStats: log rotated";
 

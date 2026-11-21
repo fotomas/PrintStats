@@ -38,8 +38,11 @@ const ARCHIVE_DIR = "archive";
 const BROWSER_KEY = "PrintStats.history";
 /** In "manage the log" mode, rotate the log once it is bigger than this */
 export const ROTATE_AT = 256 * 1024;
-/** Keep rotated logs in PrintStats/archive/ (development); the release deletes them once read in */
-const KEEP_ARCHIVES = true;
+/**
+ * Keep rotated logs in PrintStats/archive/ instead of deleting them once read in. Off in releases (the
+ * history is what is kept); set to true while developing to have the raw logs to test against.
+ */
+const KEEP_ARCHIVES = false;
 
 export type Status = "idle" | "loadingCache" | "checking" | "downloading" | "saving" | "rotating" | "importing";
 
