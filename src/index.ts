@@ -4,7 +4,6 @@
  * is cached in 0:/sys/printstats-cache.json (see usePrintStats.ts).
  */
 import { registerPluginMessages, registerRoute, unregisterRoute } from "@/plugins";
-import router from "@/router";
 import { useCacheStore } from "@/stores/cache";
 import Events from "@/utils/events";
 
@@ -32,9 +31,10 @@ registerRoute(PrintStatsPage, {
 });
 
 // After a browser reload on this page, DWC resolves the address before the plugin has registered its route
-// and shows "Page not found". Now that the route exists, open the page again.
-if (router.currentRoute.value.path === ROUTE_PATH) {
-	router.replace({ path: ROUTE_PATH, force: true }).catch(() => undefined);
+// and shows "Page not found". Now that the route exists, have the router read the address again: it listens
+// to popstate. (DWC's router itself can't be imported here: the separate plugin build can't resolve it.)
+if (location.pathname.endsWith(ROUTE_PATH)) {
+	window.dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
 }
 
 function onPluginUnloaded(id: string): void {
